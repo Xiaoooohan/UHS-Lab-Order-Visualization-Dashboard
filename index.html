@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>UHS Lab Order Journey Dashboard</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+</head>
+<body>
+  <header>
+    <h1>UHS Lab Order Journey Dashboard</h1>
+    <p>Interactive filtering + A/B comparison for specimen lifecycle performance.</p>
+  </header>
+
+  <main>
+    <section class="panel filters-panel">
+      <h2>Global Filters</h2>
+      <div class="filter-grid">
+        <label>Test Code <select id="global-test"></select></label>
+        <label>Department <select id="global-dept"></select></label>
+        <label>Street <select id="global-street"></select></label>
+        <label>Weekpart <select id="global-weekpart"></select></label>
+      </div>
+      <button id="reset-global">Reset Global Filters</button>
+    </section>
+
+    <section class="panel">
+      <h2>Overall KPIs</h2>
+      <div id="kpi-cards" class="kpi-grid"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Average Journey Timeline (Hours from Order)</h2>
+      <div id="timeline-chart"></div>
+    </section>
+
+    <section class="panel ab-panel">
+      <h2>A/B Comparison</h2>
+      <div class="ab-columns">
+        <div>
+          <h3>Group A</h3>
+          <div class="filter-grid">
+            <label>Weekpart <select id="a-weekpart"></select></label>
+            <label>Cancellation <select id="a-cancel"></select></label>
+          </div>
+          <div id="a-summary" class="ab-summary"></div>
+        </div>
+        <div>
+          <h3>Group B</h3>
+          <div class="filter-grid">
+            <label>Weekpart <select id="b-weekpart"></select></label>
+            <label>Cancellation <select id="b-cancel"></select></label>
+          </div>
+          <div id="b-summary" class="ab-summary"></div>
+        </div>
+      </div>
+      <div id="ab-chart"></div>
+    </section>
+  </main>
+
+  <script src="dashboard.js"></script>
+</body>
+</html>
