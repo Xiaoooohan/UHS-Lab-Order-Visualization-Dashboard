@@ -52,6 +52,11 @@ def sanitize_order(record):
     max_ver = record["event_times"].get("test_max_verified_dt")
     cancel = record["event_times"].get("cancellation_dt")
 
+    events = [ordered, collected, receipt, min_res, max_res, min_ver, max_ver, cancel]
+    events = [a for a in events if a]
+    first_event = min(events)
+    last_event = max(events)
+
     return {
         "accession_id": record["accession_id"],
         "test_code": record["test_code"],
@@ -68,6 +73,8 @@ def sanitize_order(record):
         "max_result_hours": hours_between(ordered, max_res),
         "min_verified_hours": hours_between(ordered, min_ver),
         "max_verified_hours": hours_between(ordered, max_ver),
+        "cancellation_hours": hours_between(ordered, cancel),
+        "event_duration": hours_between(first_event, last_event),
         "event_timestamps": {
             key: value.isoformat().replace("+00:00", "Z")
             for key, value in sorted(record["event_times"].items())
@@ -128,6 +135,7 @@ def main():
         "test_performing_location",
         "event_street",
         "ordered_at",
+        "event_duration", 
         "ordered_weekpart",
         "has_cancellation",
         "collection_hours",
@@ -136,6 +144,7 @@ def main():
         "max_result_hours",
         "min_verified_hours",
         "max_verified_hours",
+        "cancellation_hours",
         "tube_tracker_event_types",
     ]
 

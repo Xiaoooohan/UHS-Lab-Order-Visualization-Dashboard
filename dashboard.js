@@ -12,11 +12,45 @@ const state = {
     test_code: "All",
     test_performing_dept: "All",
     event_street: "All",
-    ordered_weekpart: "All"
+    ordered_weekpart: "All",
+    idxStart : null,
+    idxEnd : null,
+    dateStart : null,
+    dateEnd : null
   },
   groupA: { weekpart: "Weekday", cancel: "All" },
   groupB: { weekpart: "Weekend", cancel: "All" }
 };
+
+const timeParser = d3.utcParse("%Y-%m-%dT%H:%M:%SZ");
+
+//==================================================
+// Helper functions to render a KDE plot
+//==================================================
+// source: https://datavisualizationwithsvelte.com/basics/density-plot#kerneldensityestimator-function
+function kernelDensityEstimator(kernel, X) {
+  return function (V) {
+    return X.map(function (x) {
+      return [
+        x,
+        d3.mean(V, function (v) {
+          return kernel(x - v);
+        })
+      ];
+    });
+  };
+}
+function Epanechnikov(bandwidth) {
+  return function (v) {
+    return Math.abs((v /= bandwidth)) <= 1
+      ? (0.75 * (1 - v * v)) / bandwidth
+      : 0;
+  };
+}
+// 
+//==================================================
+
+
 
 function uniqueValues(data, key) {
   return ["All", ...Array.from(new Set(data.map(d => d[key]).filter(Boolean))).sort()];
@@ -37,6 +71,7 @@ function populateSelect(id, options) {
     .text(d => d);
 }
 
+// Brute force hammer method. Should see significant speedup if we break global vs time-slicing up
 function applyGlobalFilters() {
   state.filtered = state.raw.filter(d => {
     return (state.global.test_code === "All" || d.test_code === state.global.test_code)
@@ -50,8 +85,8 @@ function renderKPIs(data) {
   const kpis = [
     { label: "Orders", value: data.length },
     { label: "Cancellation Rate", value: `${(100 * d3.mean(data, d => d.has_cancellation ? 1 : 0) || 0).toFixed(1)}%` },
-    { label: "Median Collection (h)", value: (d3.median(data.map(d => d.collection_hours).filter(Number.isFinite)) || 0).toFixed(2) },
-    { label: "Median Verified (h)", value: (d3.median(data.map(d => d.max_verified_hours).filter(Number.isFinite)) || 0).toFixed(2) }
+    { label: "Median Hours from Order to Collection", value: (d3.median(data.map(d => d.collection_hours).filter(Number.isFinite)) || 0).toFixed(2) },
+    { label: "Median Hours from Order to Verification", value: (d3.median(data.map(d => d3.max([d.min_verified_hours, d.max_verified_hours])).filter(Number.isFinite)) || 0).toFixed(2) }
   ];
 
   d3.select("#kpi-cards")
@@ -61,6 +96,79 @@ function renderKPIs(data) {
     .attr("class", "kpi")
     .html(d => `<div class='label'>${d.label}</div><div class='value'>${d.value}</div>`);
 }
+
+function renderKDE(data) {
+  const width = 900, height = 150, margin = { top: 20, right: 24, bottom: 40, left: 24 };
+  const svg = d3.select("#kde-chart").html("").append("svg").attr("viewBox", `0 0 ${width} ${height}`);
+  const x = d3.scaleUtc().domain(d3.extent(data, d => timeParser(d.ordered_at))).range([margin.left, width - margin.right]).clamp(true);
+ 
+  // construct the two KDE curves
+  const cancelled = data.filter(d => d.has_cancellation).map(d => x(timeParser(d.ordered_at)));
+  const successful = data.filter(d => !d.has_cancellation).map(d => x(timeParser(d.ordered_at)));
+
+  const KDE = kernelDensityEstimator(
+    Epanechnikov(7),
+    x.ticks(40).map(d => x(d))
+  );
+
+  // use the concat to make sure it closes the area at the xaxis
+  const cancelled_density = KDE(cancelled).map(d => [d[0], d[1] * cancelled.length / data.length]).concat([[width - margin.right, 0]]);
+  const successful_density = KDE(successful).map(d => [d[0], d[1] * successful.length / data.length]).concat([[width - margin.right, 0]]);
+
+  const y = d3.scaleLinear().domain([0, d3.max(cancelled_density.concat(successful_density).map(d => d[1]))]).nice().range([height - margin.bottom, margin.top]);
+  const lineGenerator = d3.line()
+                          .x((d) =>   d[0] )
+                          .y((d) => y(d[1]))
+                          .curve(d3.curveMonotoneX);
+
+  svg.append("g").attr("class", "axis").attr("transform", `translate(0,${height - margin.bottom})`).call(d3.axisBottom(x));
+  // svg.append("g").attr("class", "axis").attr("transform", `translate(${margin.left},0)`).call(d3.axisLeft(y));
+  svg.append("path").attr("stroke", 'steelblue')
+                    .attr("stroke-width", 1)
+                    .attr("stroke-linejoin","round")
+                    .attr("fill",'steelblue')
+                    .attr("fill-opacity", 0.2)
+                    .attr("d", lineGenerator(successful_density));
+  svg.append("path").attr("stroke", 'red')
+                    .attr("stroke-width", 1)
+                    .attr("stroke-linejoin","round")
+                    .attr("fill",'red')
+                    .attr("fill-opacity", 0.2)
+                    .attr("d", lineGenerator(cancelled_density));
+
+  // Brush things
+  const brush = d3.brushX()
+                  .extent([[margin.left, margin.top], [width - margin.right, height - margin.bottom]])
+                  .on("brush", brushed)
+                  .on("end", brushended);
+
+  const defaultSelection = state.global.dateStart && state.global.dateEnd
+                ? [x(state.global.dateStart), x(state.global.dateEnd)]
+                : [x(d3.utcYear.offset(x.domain()[1], -1)), x.range()[1]];
+
+  const gb = svg.append("g").call(brush).call(brush.move, defaultSelection);
+
+  function brushed({selection}) {
+    if (selection) {
+      const [startDate, endDate] = selection.map(x.invert, x).map(d3.utcDay.round);
+      const idxStart = Math.max(data.findIndex(d => timeParser(d.ordered_at) >= startDate), 0);
+      const idxEnd = Math.max(data.findLastIndex(d => timeParser(d.ordered_at) <= endDate), 1);
+      if(idxStart != state.global.idxStart || idxEnd != state.global.idxEnd) {
+        state.global.dateStart = startDate;
+        state.global.dateEnd = endDate;
+        state.global.idxStart = idxStart;
+        state.global.idxEnd = idxEnd;
+        renderTimespanChange();
+      }
+    }
+  }
+  function brushended({selection}) {
+    if(!selection) {
+      gb.call(brush.move, defaultSelection);
+    }
+  }
+}
+
 
 function renderTimeline(data) {
   const points = timelineStages
@@ -216,12 +324,32 @@ function renderAB(dataA, dataB) {
     .text("■ Group B");
 }
 
-function render() {
+function renderRaw() {
+  state.filtered = state.raw;
+  renderKDE(state.raw)
+  renderKPIs(state.raw);
+  renderTimeline(state.raw);
+  const aData = filterAB(state.raw, state.groupA);
+  const bData = filterAB(state.raw, state.groupB);
+  renderAB(aData, bData);
+}
+
+function renderTimespanChange() {
+  const sliced = state.filtered.slice(state.global.idxStart, state.global.idxEnd);
+  renderKPIs(sliced);
+  renderTimeline(sliced);
+  const aData = filterAB(sliced, state.groupA);
+  const bData = filterAB(sliced, state.groupB);
+  renderAB(aData, bData);
+}
+
+function renderStateChange() {
   applyGlobalFilters();
-  renderKPIs(state.filtered);
-  renderTimeline(state.filtered);
-  const aData = filterAB(state.filtered, state.groupA);
-  const bData = filterAB(state.filtered, state.groupB);
+  renderKDE(state.filtered)
+  renderKPIs(state.filtered.slice(state.global.idxStart, state.global.idxEnd));
+  renderTimeline(state.filtered.slice(state.global.idxStart, state.global.idxEnd));
+  const aData = filterAB(state.filtered.slice(state.global.idxStart, state.global.idxEnd), state.groupA);
+  const bData = filterAB(state.filtered.slice(state.global.idxStart, state.global.idxEnd), state.groupB);
   renderAB(aData, bData);
 }
 
@@ -246,15 +374,15 @@ function setupControls() {
   d3.select("#a-weekpart").property("value", "Weekday");
   d3.select("#b-weekpart").property("value", "Weekend");
 
-  d3.select("#global-test").on("change", e => { state.global.test_code = e.target.value; render(); });
-  d3.select("#global-dept").on("change", e => { state.global.test_performing_dept = e.target.value; render(); });
-  d3.select("#global-street").on("change", e => { state.global.event_street = e.target.value; render(); });
-  d3.select("#global-weekpart").on("change", e => { state.global.ordered_weekpart = e.target.value; render(); });
+  d3.select("#global-test").on("change", e => { state.global.test_code = e.target.value; renderStateChange(); });
+  d3.select("#global-dept").on("change", e => { state.global.test_performing_dept = e.target.value; renderStateChange(); });
+  d3.select("#global-street").on("change", e => { state.global.event_street = e.target.value; renderStateChange(); });
+  d3.select("#global-weekpart").on("change", e => { state.global.ordered_weekpart = e.target.value; renderStateChange(); });
 
-  d3.select("#a-weekpart").on("change", e => { state.groupA.weekpart = e.target.value; render(); });
-  d3.select("#a-cancel").on("change", e => { state.groupA.cancel = e.target.value; render(); });
-  d3.select("#b-weekpart").on("change", e => { state.groupB.weekpart = e.target.value; render(); });
-  d3.select("#b-cancel").on("change", e => { state.groupB.cancel = e.target.value; render(); });
+  d3.select("#a-weekpart").on("change", e => { state.groupA.weekpart = e.target.value; renderStateChange(); });
+  d3.select("#a-cancel").on("change", e => { state.groupA.cancel = e.target.value; renderStateChange(); });
+  d3.select("#b-weekpart").on("change", e => { state.groupB.weekpart = e.target.value; renderStateChange(); });
+  d3.select("#b-cancel").on("change", e => { state.groupB.cancel = e.target.value; renderStateChange(); });
 
   d3.select("#reset-global").on("click", () => {
     state.global = {
@@ -276,7 +404,7 @@ fetch("dashboard_data.json")
   .then(data => {
     state.raw = data;
     setupControls();
-    render();
+    renderRaw();
   })
   .catch(err => {
     d3.select("main").append("p").style("color", "crimson").text(`Failed to load dashboard_data.json: ${err}`);
