@@ -67,6 +67,7 @@ def sanitize_order(record):
         "ordered_weekpart": weekpart(ordered),
         "has_cancellation": bool(cancel),
         "tube_tracker_event_types": sorted(record["tube_tracker_event_types"]),
+        "n_tube_tracker_events": len(record["tube_tracker_event_types"]),
         "collection_hours": hours_between(ordered, collected),
         "receipt_hours": hours_between(ordered, receipt),
         "min_result_hours": hours_between(ordered, min_res),
@@ -145,7 +146,7 @@ def main():
         "min_verified_hours",
         "max_verified_hours",
         "cancellation_hours",
-        "tube_tracker_event_types",
+        "n_tube_tracker_events",
     ]
 
     with OUT_CSV.open("w", newline="", encoding="utf-8") as f:

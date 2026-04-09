@@ -86,7 +86,8 @@ function renderKPIs(data) {
     { label: "Orders", value: data.length },
     { label: "Cancellation Rate", value: `${(100 * d3.mean(data, d => d.has_cancellation ? 1 : 0) || 0).toFixed(1)}%` },
     { label: "Median Hours from Order to Collection", value: (d3.median(data.map(d => d.collection_hours).filter(Number.isFinite)) || 0).toFixed(2) },
-    { label: "Median Hours from Order to Verification", value: (d3.median(data.map(d => d3.max([d.min_verified_hours, d.max_verified_hours])).filter(Number.isFinite)) || 0).toFixed(2) }
+    { label: "Median Hours from Order to Verification", value: (d3.median(data.map(d => d3.max([d.min_verified_hours, d.max_verified_hours])).filter(Number.isFinite)) || 0).toFixed(2) },
+    { label: "Mean | Std. Deviation of Count of Tube Tracker Events", value: String((d3.mean(data.map(d => d.n_tube_tracker_events).filter(Number.isFinite)) || 0).toFixed(2)) + " | " + String((d3.deviation(data.map(d => d.n_tube_tracker_events).filter(Number.isFinite))).toFixed(2))}
   ];
 
   d3.select("#kpi-cards")
@@ -122,13 +123,25 @@ function renderKDE(data) {
                           .curve(d3.curveMonotoneX);
 
   svg.append("g").attr("class", "axis").attr("transform", `translate(0,${height - margin.bottom})`).call(d3.axisBottom(x));
-  // svg.append("g").attr("class", "axis").attr("transform", `translate(${margin.left},0)`).call(d3.axisLeft(y));
+  svg.append("path").attr("stroke", "steelblue")
+                    .attr("stroke-width", 1)
+                    .attr("d", d3.line()([[margin.left / 2, (height - margin.top - margin.bottom) / 2 - 5], [margin.left, (height - margin.top - margin.bottom)/2 - 5]]))
+                    .attr("text", "Validated Orders");
+  svg.append("text").text("Validated Orders").style("font-size", "8px")
+                    .attr("x", margin.left).attr("dx", 2)
+                    .attr("y", (height - margin.top - margin.bottom)/2 - 5).attr("dy", 2);
   svg.append("path").attr("stroke", 'steelblue')
                     .attr("stroke-width", 1)
                     .attr("stroke-linejoin","round")
                     .attr("fill",'steelblue')
                     .attr("fill-opacity", 0.2)
                     .attr("d", lineGenerator(successful_density));
+  svg.append("path").attr("stroke", "red")
+                    .attr("stroke-width", 1)
+                    .attr("d", d3.line()([[margin.left / 2, (height - margin.top - margin.bottom) / 2 + 5], [margin.left, (height - margin.top - margin.bottom)/2 + 5]]))
+  svg.append("text").text("Cancelled Orders").style("font-size", "8px")
+                    .attr("x", margin.left).attr("dx", 2)
+                    .attr("y", (height - margin.top - margin.bottom)/2 + 5).attr("dy", 2);
   svg.append("path").attr("stroke", 'red')
                     .attr("stroke-width", 1)
                     .attr("stroke-linejoin","round")
@@ -175,13 +188,14 @@ function renderTimeline(data) {
     .map(s => ({ stage: s.label, value: mean(data.map(d => d[s.key])) }))
     .filter(d => d.value !== null);
 
-  const width = 900, height = 290, margin = { top: 20, right: 24, bottom: 40, left: 50 };
+  const width = 900, height = 290, margin = { top: 20, right: 40, bottom: 40, left: 40 };
   const svg = d3.select("#timeline-chart").html("").append("svg").attr("viewBox", `0 0 ${width} ${height}`);
   const x = d3.scalePoint().domain(points.map(d => d.stage)).range([margin.left, width - margin.right]);
-  const y = d3.scaleLinear().domain([0, d3.max(points, d => d.value) * 1.1 || 1]).nice().range([height - margin.bottom, margin.top]);
+  // const y = d3.scaleLinear().domain([0, d3.max(points, d => d.value) * 1.1 || 1]).nice().range([height - margin.bottom, margin.top]);
+  const y = d3.scaleLinear().domain(d3.extent(points, d => d.value)).nice().range([height - margin.bottom, margin.top]);
 
   svg.append("g").attr("class", "axis").attr("transform", `translate(0,${height - margin.bottom})`).call(d3.axisBottom(x));
-  svg.append("g").attr("class", "axis").attr("transform", `translate(${margin.left},0)`).call(d3.axisLeft(y));
+  // svg.append("g").attr("class", "axis").attr("transform", `translate(${margin.left},0)`).call(d3.axisLeft(y));
 
   const line = d3.line().x(d => x(d.stage)).y(d => y(d.value));
   svg.append("path").datum(points).attr("fill", "none").attr("stroke", "#1f4f66").attr("stroke-width", 2.5).attr("d", line);
