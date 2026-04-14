@@ -260,9 +260,10 @@ function renderAB(dataA, dataB) {
     .attr("viewBox", `0 0 ${width} ${height}`);
 
   const maxV = d3.max(rows.flatMap(r => [r.A, r.B])) || 1;
+  const minV = d3.min(rows.flatMap(r => [r.A, r.B])) || 0;
 
   const x = d3.scaleLinear()
-    .domain([0, maxV * 1.15])
+    .domain([minV * 1.15, maxV * 1.15])
     .range([margin.left, width - margin.right]);
 
   const y = d3.scaleBand()
@@ -284,9 +285,9 @@ function renderAB(dataA, dataB) {
     .data(rows)
     .join("rect")
     .attr("class", "barA")
-    .attr("x", x(0))
+    .attr("x", d => x(Math.min(0, d.A)))
     .attr("y", d => y(d.metric) + 6)
-    .attr("width", d => Math.max(0, x(d.A) - x(0)))
+    .attr("width", d => Math.abs(x(d.A) - x(0)))
     .attr("height", 14)
     .attr("fill", "#1f4f66");
 
@@ -294,17 +295,32 @@ function renderAB(dataA, dataB) {
     .data(rows)
     .join("rect")
     .attr("class", "barB")
-    .attr("x", x(0))
+    .attr("x", d => x(Math.min(0, d.B)))
     .attr("y", d => y(d.metric) + 26)
-    .attr("width", d => Math.max(0, x(d.B) - x(0)))
+    .attr("width", d => Math.abs(x(d.B) - x(0)))
     .attr("height", 14)
     .attr("fill", "#64748b");
+
+  const cancel_median_time_A = d3.median(dataA.filter(d => d.has_cancellation).map(d => d.cancellation_hours));
+  const cancel_median_time_B = d3.median(dataB.filter(d => d.has_cancellation).map(d => d.cancellation_hours));
+  a_dash = ("10,10");
+  b_dash = ("5,5");
+  svg.append("path").attr("stroke", "red")
+                    .attr("stroke-width", 1)
+                    .attr("stroke-dasharray", a_dash)
+                    .attr("d", d3.line()([[x(cancel_median_time_A), (height - margin.bottom)], [x(cancel_median_time_A), margin.top]]))
+                    .attr("text", "Validated Orders");
+  svg.append("path").attr("stroke", "red")
+                    .attr("stroke-width", 1)
+                    .attr("stroke-dasharray", b_dash)
+                    .attr("d", d3.line()([[x(cancel_median_time_B), (height - margin.bottom)], [x(cancel_median_time_B), margin.top]]))
+                    .attr("text", "Validated Orders");
 
   svg.selectAll(".txtA")
     .data(rows)
     .join("text")
     .attr("class", "txtA")
-    .attr("x", d => x(d.A) + 6)
+    .attr("x", d => x(Math.max(d.A, 0)) + 6)
     .attr("y", d => y(d.metric) + 18)
     .attr("fill", "#1f4f66")
     .style("font-size", "12px")
@@ -314,7 +330,7 @@ function renderAB(dataA, dataB) {
     .data(rows)
     .join("text")
     .attr("class", "txtB")
-    .attr("x", d => x(d.B) + 6)
+    .attr("x", d => x(Math.max(d.B, 0)) + 6)
     .attr("y", d => y(d.metric) + 38)
     .attr("fill", "#475569")
     .style("font-size", "12px")
@@ -325,17 +341,27 @@ function renderAB(dataA, dataB) {
 
   legend.append("text")
     .attr("x", 0)
-    .attr("y", 0)
+    .attr("y", 5)
     .attr("fill", "#1f4f66")
     .style("font-size", "12px")
     .text("■ Group A");
+  legend.append("path").attr("stroke", "red")
+                       .attr("stroke-width", 1)
+                       .attr("stroke-dasharray", a_dash)
+                       .attr("d", d3.line()([[0, 6], [60, 6]]))
+                       .attr("text", "Validated Orders");
 
   legend.append("text")
     .attr("x", 90)
-    .attr("y", 0)
+    .attr("y", 5)
     .attr("fill", "#475569")
     .style("font-size", "12px")
     .text("■ Group B");
+  legend.append("path").attr("stroke", "red")
+                       .attr("stroke-width", 1)
+                       .attr("stroke-dasharray", b_dash)
+                       .attr("d", d3.line()([[90, 6], [150, 6]]))
+                       .attr("text", "Validated Orders");
 }
 
 function renderRaw() {
