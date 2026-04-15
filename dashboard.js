@@ -193,6 +193,12 @@ function renderKDE(data) {
         state.global.idxEnd = idxEnd;
         renderTimespanChange();
       }
+    } else {
+      state.global.dateStart = d3.timeDay.floor(x.domain()[0]);
+      state.global.dateEnd = d3.timeDay.ceil(x.domain()[1]);
+      state.global.idxStart = 0;
+      state.global.idxEnd = data.length - 1;
+      renderTimespanChange();
     }
   }
   function brushended({selection}) {
