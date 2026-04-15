@@ -24,6 +24,8 @@ const state = {
 
 const timeParser = d3.utcParse("%Y-%m-%dT%H:%M:%SZ");
 
+const colors = { A: "#1f4f66", B: "#607080"};
+
 //==================================================
 // Helper functions to render a KDE plot
 //==================================================
@@ -53,7 +55,13 @@ function Epanechnikov(bandwidth) {
 
 
 function uniqueValues(data, key) {
-  return ["All", ...Array.from(new Set(data.map(d => d[key]).filter(Boolean))).sort()];
+  const freq = new Map();
+  for (const e of data) {
+    freq.set(e[key], (freq.get(e[key]) || 0) + 1);
+  }
+  
+  const arr = Array.from(freq.keys());
+  return ["All", ...arr.sort((a,b) => freq[b] - freq[a])];
 }
 
 function mean(values) {
@@ -96,6 +104,16 @@ function renderKPIs(data) {
     .join("div")
     .attr("class", "kpi")
     .html(d => `<div class='label'>${d.label}</div><div class='value'>${d.value}</div>`);
+
+  const formatTime = d3.utcFormat("%d %B, %Y");
+  d3.select("#date-cards").selectAll(".kpi")
+			  .data([
+				  {label:"Selection Start Date", value:formatTime(state.global.dateStart)}, 
+				  {label:"Selection End Date", value:formatTime(state.global.dateEnd)},
+				  {label:"Selection Days", value:d3.timeDay.count(state.global.dateStart, state.global.dateEnd)}
+			  ]).join("div")
+		            .attr("class","kpi")
+    .html(d => `<div class='label'>${d.label}</div><div class='value'>${d.value}</div>`);
 }
 
 function renderKDE(data) {
@@ -113,8 +131,8 @@ function renderKDE(data) {
   );
 
   // use the concat to make sure it closes the area at the xaxis
-  const cancelled_density = KDE(cancelled).map(d => [d[0], d[1] * cancelled.length / data.length]).concat([[width - margin.right, 0]]);
-  const successful_density = KDE(successful).map(d => [d[0], d[1] * successful.length / data.length]).concat([[width - margin.right, 0]]);
+  const cancelled_density = [[margin.left, 0]].concat(KDE(cancelled).map(d => [d[0], d[1] * cancelled.length / data.length])).concat([[width - margin.right, 0]]);
+  const successful_density = [[margin.left, 0]].concat(KDE(successful).map(d => [d[0], d[1] * successful.length / data.length])).concat([[width - margin.right, 0]]);
 
   const y = d3.scaleLinear().domain([0, d3.max(cancelled_density.concat(successful_density).map(d => d[1]))]).nice().range([height - margin.bottom, margin.top]);
   const lineGenerator = d3.line()
@@ -155,20 +173,22 @@ function renderKDE(data) {
                   .on("brush", brushed)
                   .on("end", brushended);
 
-  const defaultSelection = state.global.dateStart && state.global.dateEnd
+  const defaultSelection = state.global.dateStart && state.global.dateEnd && (x(state.global.dateStart) != x.range()[0] || x(state.global.dateEnd) != x.range()[1])
                 ? [x(state.global.dateStart), x(state.global.dateEnd)]
-                : [x(d3.utcYear.offset(x.domain()[1], -1)), x.range()[1]];
+                : null;
 
   const gb = svg.append("g").call(brush).call(brush.move, defaultSelection);
 
   function brushed({selection}) {
     if (selection) {
       const [startDate, endDate] = selection.map(x.invert, x).map(d3.utcDay.round);
-      const idxStart = Math.max(data.findIndex(d => timeParser(d.ordered_at) >= startDate), 0);
-      const idxEnd = Math.max(data.findLastIndex(d => timeParser(d.ordered_at) <= endDate), 1);
+      const startDay = d3.timeDay.floor(startDate);
+      const endDay = d3.timeDay.ceil(endDate);
+      const idxStart = Math.max(data.findIndex(d => timeParser(d.ordered_at) >= startDay), 0);
+      const idxEnd = Math.max(data.findLastIndex(d => timeParser(d.ordered_at) < endDay), 1);
       if(idxStart != state.global.idxStart || idxEnd != state.global.idxEnd) {
-        state.global.dateStart = startDate;
-        state.global.dateEnd = endDate;
+        state.global.dateStart = startDay;
+        state.global.dateEnd = endDay;
         state.global.idxStart = idxStart;
         state.global.idxEnd = idxEnd;
         renderTimespanChange();
@@ -177,7 +197,11 @@ function renderKDE(data) {
   }
   function brushended({selection}) {
     if(!selection) {
-      gb.call(brush.move, defaultSelection);
+      state.global.dateStart = d3.timeDay.floor(x.domain()[0]);
+      state.global.dateEnd = d3.timeDay.ceil(x.domain()[1]);
+      state.global.idxStart = 0;
+      state.global.idxEnd = data.length - 1;
+      renderTimespanChange();
     }
   }
 }
@@ -198,10 +222,10 @@ function renderTimeline(data) {
   // svg.append("g").attr("class", "axis").attr("transform", `translate(${margin.left},0)`).call(d3.axisLeft(y));
 
   const line = d3.line().x(d => x(d.stage)).y(d => y(d.value));
-  svg.append("path").datum(points).attr("fill", "none").attr("stroke", "#1f4f66").attr("stroke-width", 2.5).attr("d", line);
+  svg.append("path").datum(points).attr("fill", "none").attr("stroke", colors.A).attr("stroke-width", 2.5).attr("d", line);
 
   svg.selectAll("circle").data(points).join("circle")
-    .attr("cx", d => x(d.stage)).attr("cy", d => y(d.value)).attr("r", 4.2).attr("fill", "#1f4f66");
+    .attr("cx", d => x(d.stage)).attr("cy", d => y(d.value)).attr("r", 4.2).attr("fill", colors.A);
 
   svg.selectAll(".pt-label").data(points).join("text")
     .attr("class", "pt-label")
@@ -234,7 +258,7 @@ function renderAB(dataA, dataB) {
     { label: "Avg Collection (h)", key: "collection_hours" },
     { label: "Avg Receipt (h)", key: "receipt_hours" },
     { label: "Avg Verified (h)", key: "max_verified_hours" },
-    { label: "Cancellation Rate (%)", key: "cancel_rate" }
+    // { label: "Cancellation Rate (%)", key: "cancel_rate" }
   ];
 
   const rows = metrics.map(m => {
@@ -263,7 +287,7 @@ function renderAB(dataA, dataB) {
   const minV = d3.min(rows.flatMap(r => [r.A, r.B])) || 0;
 
   const x = d3.scaleLinear()
-    .domain([minV * 1.15, maxV * 1.15])
+    .domain([Math.min(minV, 0) * 1.15, maxV * 1.15])
     .range([margin.left, width - margin.right]);
 
   const y = d3.scaleBand()
@@ -281,25 +305,30 @@ function renderAB(dataA, dataB) {
     .attr("transform", `translate(${margin.left},0)`)
     .call(d3.axisLeft(y));
 
+  svg.append("g").attr("class", "axis").append("line")
+                    .attr("x1", x(0)).attr("x2", x(0))
+	            .attr("y1", margin.top)
+		    .attr("y2", height - margin.bottom);
+
   svg.selectAll(".barA")
     .data(rows)
     .join("rect")
     .attr("class", "barA")
     .attr("x", d => x(Math.min(0, d.A)))
-    .attr("y", d => y(d.metric) + 6)
+    .attr("y", d => y(d.metric))
     .attr("width", d => Math.abs(x(d.A) - x(0)))
     .attr("height", 14)
-    .attr("fill", "#1f4f66");
+    .attr("fill", colors.A);
 
   svg.selectAll(".barB")
     .data(rows)
     .join("rect")
     .attr("class", "barB")
     .attr("x", d => x(Math.min(0, d.B)))
-    .attr("y", d => y(d.metric) + 26)
+    .attr("y", d => y(d.metric) + 20)
     .attr("width", d => Math.abs(x(d.B) - x(0)))
     .attr("height", 14)
-    .attr("fill", "#64748b");
+    .attr("fill", colors.B);
 
   const cancel_median_time_A = d3.median(dataA.filter(d => d.has_cancellation).map(d => d.cancellation_hours));
   const cancel_median_time_B = d3.median(dataB.filter(d => d.has_cancellation).map(d => d.cancellation_hours));
@@ -321,8 +350,8 @@ function renderAB(dataA, dataB) {
     .join("text")
     .attr("class", "txtA")
     .attr("x", d => x(Math.max(d.A, 0)) + 6)
-    .attr("y", d => y(d.metric) + 18)
-    .attr("fill", "#1f4f66")
+    .attr("y", d => y(d.metric) + 12)
+    .attr("fill", colors.A)
     .style("font-size", "12px")
     .text(d => d.A.toFixed(2));
 
@@ -331,7 +360,7 @@ function renderAB(dataA, dataB) {
     .join("text")
     .attr("class", "txtB")
     .attr("x", d => x(Math.max(d.B, 0)) + 6)
-    .attr("y", d => y(d.metric) + 38)
+    .attr("y", d => y(d.metric) + 32)
     .attr("fill", "#475569")
     .style("font-size", "12px")
     .text(d => d.B.toFixed(2));
@@ -342,7 +371,7 @@ function renderAB(dataA, dataB) {
   legend.append("text")
     .attr("x", 0)
     .attr("y", 5)
-    .attr("fill", "#1f4f66")
+    .attr("fill", colors.A)
     .style("font-size", "12px")
     .text("■ Group A");
   legend.append("path").attr("stroke", "red")
@@ -398,7 +427,7 @@ function setupControls() {
     tests: uniqueValues(state.raw, "test_code"),
     depts: uniqueValues(state.raw, "test_performing_dept"),
     streets: uniqueValues(state.raw, "event_street"),
-    weekparts: ["All", "Weekday", "Weekend", "Unknown"]
+    weekparts: ["All", "Weekday", "Weekend"]
   };
 
   populateSelect("#global-test", opts.tests);
@@ -435,7 +464,7 @@ function setupControls() {
     d3.select("#global-dept").property("value", "All");
     d3.select("#global-street").property("value", "All");
     d3.select("#global-weekpart").property("value", "All");
-    render();
+    renderRaw();
   });
 }
 
