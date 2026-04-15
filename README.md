@@ -8,3 +8,12 @@
 - `order_level_dataset.csv` — tabular processed output.
 - `preprocessing_summary.json` — processing metadata.
 - `index.html`, `dashboard.js`, `styles.css` — complete D3 dashboard.
+
+## Use
+Unzip the data file and preprocess it with the provided python script. Serve the site `index.html` with e.g. live-server.
+
+```bash
+$ unzip 2025_specimen_time_series_event_no_phi.zip
+$ python3 preprocess_data.py
+$ live-server
+```
