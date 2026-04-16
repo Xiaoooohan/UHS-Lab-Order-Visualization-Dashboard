@@ -407,17 +407,17 @@ function renderAB(dataA, dataB) {
     .attr("fill", "#374151").style("font-size", "12px")
     .text("Group B");
 
-  legend.append("path").attr("stroke", cancelColorA)
+  legend.append("path").attr("stroke", "red")
     .attr("stroke-width", 1).attr("stroke-dasharray", cancelDashA)
-    .attr("d", d3.line()([[150, 5], [190, 5]]));
+    .attr("d", d3.line()([[150, 2.5], [190, 2.5]]));
   legend.append("text")
     .attr("x", 194).attr("y", 5)
     .attr("fill", "#374151").style("font-size", "10px")
     .text("A Med. Cancel");
 
-  legend.append("path").attr("stroke", cancelColorB)
+  legend.append("path").attr("stroke", "red")
     .attr("stroke-width", 1).attr("stroke-dasharray", cancelDashB)
-    .attr("d", d3.line()([[275, 5], [315, 5]]));
+    .attr("d", d3.line()([[275, 2.5], [315, 2.5]]));
   legend.append("text")
     .attr("x", 319).attr("y", 5)
     .attr("fill", "#374151").style("font-size", "10px")
