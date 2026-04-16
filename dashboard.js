@@ -9,7 +9,6 @@ const state = {
   raw: [],
   filtered: [],
   global: {
-    test_code: "All",
     test_performing_dept: "All",
     event_street: "All",
     ordered_weekpart: "All",
@@ -82,12 +81,21 @@ function populateSelect(id, options) {
 
 // Brute force hammer method. Should see significant speedup if we break global vs time-slicing up
 function applyGlobalFilters() {
-  state.filtered = state.raw.filter(d => {
-    return (state.global.test_code === "All" || d.test_code === state.global.test_code)
-      && (state.global.test_performing_dept === "All" || d.test_performing_dept === state.global.test_performing_dept)
-      && (state.global.event_street === "All" || d.event_street === state.global.event_street)
-      && (state.global.ordered_weekpart === "All" || d.ordered_weekpart === state.global.ordered_weekpart);
-  });
+  if (state.defect.selectedTests.length > 0) {
+    const testSet = new Set(state.defect.selectedTests);
+    state.filtered = state.raw.filter(d => {
+            return (d.test_code && testSet.has(d.test_code))
+               && (state.global.test_performing_dept === "All" || d.test_performing_dept === state.global.test_performing_dept)
+               && (state.global.event_street === "All" || d.event_street === state.global.event_street)
+               && (state.global.ordered_weekpart === "All" || d.ordered_weekpart === state.global.ordered_weekpart);
+    });
+  } else {
+    state.filtered = state.raw.filter(d => {
+      return (state.global.test_performing_dept === "All" || d.test_performing_dept === state.global.test_performing_dept)
+          && (state.global.event_street === "All" || d.event_street === state.global.event_street)
+          && (state.global.ordered_weekpart === "All" || d.ordered_weekpart === state.global.ordered_weekpart);
+    });
+  }
 }
 
 function renderKPIs(data) {
@@ -96,7 +104,7 @@ function renderKPIs(data) {
     { label: "Cancellation Rate", value: `${(100 * d3.mean(data, d => d.has_cancellation ? 1 : 0) || 0).toFixed(1)}%` },
     { label: "Median Hours from Order to Collection", value: (d3.median(data.map(d => d.collection_hours).filter(Number.isFinite)) || 0).toFixed(2) },
     { label: "Median Hours from Order to Verification", value: (d3.median(data.map(d => d3.max([d.min_verified_hours, d.max_verified_hours])).filter(Number.isFinite)) || 0).toFixed(2) },
-    { label: "Mean | S.d. of Count of Tube Tracker Events", value: String((d3.mean(data.map(d => d.n_tube_tracker_events).filter(Number.isFinite)) || 0).toFixed(2)) + " | " + String((d3.deviation(data.map(d => d.n_tube_tracker_events).filter(Number.isFinite))).toFixed(2))}
+    { label: "Mean | S.d. of Count of Tube Tracker Events", value: String((d3.mean(data.map(d => d.n_tube_tracker_events).filter(Number.isFinite)) || 0).toFixed(2)) + " | " + String((d3.deviation(data.map(d => d.n_tube_tracker_events).filter(Number.isFinite)) || 0).toFixed(2))}
   ];
 
   d3.select("#kpi-cards")
@@ -108,12 +116,12 @@ function renderKPIs(data) {
 
   const formatTime = d3.utcFormat("%d %B, %Y");
   d3.select("#date-cards").selectAll(".kpi")
-			  .data([
-				  {label:"Selection Start Date", value:formatTime(state.global.dateStart)}, 
-				  {label:"Selection End Date", value:formatTime(state.global.dateEnd)},
-				  {label:"Selection Days", value:d3.timeDay.count(state.global.dateStart, state.global.dateEnd)}
-			  ]).join("div")
-		            .attr("class","kpi")
+                          .data([
+                                  {label:"Selection Start Date", value:formatTime(state.global.dateStart)}, 
+                                  {label:"Selection End Date", value:formatTime(state.global.dateEnd)},
+                                  {label:"Selection Days", value:d3.timeDay.count(state.global.dateStart, state.global.dateEnd)}
+                          ]).join("div")
+                            .attr("class","kpi")
     .html(d => `<div class='label'>${d.label}</div><div class='value'>${d.value}</div>`);
 }
 
@@ -219,8 +227,11 @@ function renderTimeline(data) {
     .map(s => ({ stage: s.label, value: mean(data.map(d => d[s.key])) }))
     .filter(d => d.value !== null);
 
-  const width = 900, height = 290, margin = { top: 20, right: 40, bottom: 40, left: 40 };
-  const svg = d3.select("#timeline-chart").html("").append("svg").attr("viewBox", `0 0 ${width} ${height}`);
+  const container = d3.select("#timeline-chart");
+  const width = 400, height = 300, margin = { top: 20, right: 40, bottom: 40, left: 40 };
+  const svg = container.html("").append("svg")
+                                .attr("viewBox", `0 0 ${width} ${height}`);
+                             // .attr("width", width).attr("height", height);
   const x = d3.scalePoint().domain(points.map(d => d.stage)).range([margin.left, width - margin.right]);
   // const y = d3.scaleLinear().domain([0, d3.max(points, d => d.value) * 1.1 || 1]).nice().range([height - margin.bottom, margin.top]);
   const y = d3.scaleLinear().domain(d3.extent(points, d => d.value)).nice().range([height - margin.bottom, margin.top]);
@@ -314,11 +325,11 @@ function renderAB(dataA, dataB) {
 
   svg.append("g").attr("class", "axis").append("line")
                     .attr("x1", x(0)).attr("x2", x(0))
-	            .attr("y1", margin.top)
-		    .attr("y2", height - margin.bottom);
+                    .attr("y1", margin.top)
+                    .attr("y2", height - margin.bottom);
 
-  const cancelColorA = "#e74c6f";
-  const cancelColorB = "#5b9bd5";
+  const cancelColorA = colors.A;
+  const cancelColorB = colors.B;
 
   svg.selectAll(".barA")
     .data(rows)
@@ -329,7 +340,7 @@ function renderAB(dataA, dataB) {
     .attr("width", d => Math.abs(x(d.A) - x(0)))
     .attr("height", 14)
     .attr("fill", cancelColorA)
-    .attr("fill-opacity", 0.35);
+    .attr("fill-opacity", 0.85);
 
   svg.selectAll(".barB")
     .data(rows)
@@ -340,18 +351,19 @@ function renderAB(dataA, dataB) {
     .attr("width", d => Math.abs(x(d.B) - x(0)))
     .attr("height", 14)
     .attr("fill", cancelColorB)
-    .attr("fill-opacity", 0.35);
+    .attr("fill-opacity", 0.85);
 
   const cancel_median_time_A = d3.median(dataA.filter(d => d.has_cancellation).map(d => d.cancellation_hours));
   const cancel_median_time_B = d3.median(dataB.filter(d => d.has_cancellation).map(d => d.cancellation_hours));
-  const cancelDash = "10,10";
-  svg.append("path").attr("stroke", cancelColorA)
+  const cancelDashA = "10,10";
+  const cancelDashB = "5,5";
+  svg.append("path").attr("stroke", "red")
                     .attr("stroke-width", 1)
-                    .attr("stroke-dasharray", cancelDash)
+                    .attr("stroke-dasharray", cancelDashA)
                     .attr("d", d3.line()([[x(cancel_median_time_A), (height - margin.bottom)], [x(cancel_median_time_A), margin.top]]));
-  svg.append("path").attr("stroke", cancelColorB)
+  svg.append("path").attr("stroke", "red")
                     .attr("stroke-width", 1)
-                    .attr("stroke-dasharray", cancelDash)
+                    .attr("stroke-dasharray", cancelDashB)
                     .attr("d", d3.line()([[x(cancel_median_time_B), (height - margin.bottom)], [x(cancel_median_time_B), margin.top]]));
 
   svg.selectAll(".txtA")
@@ -396,7 +408,7 @@ function renderAB(dataA, dataB) {
     .text("Group B");
 
   legend.append("path").attr("stroke", cancelColorA)
-    .attr("stroke-width", 1).attr("stroke-dasharray", cancelDash)
+    .attr("stroke-width", 1).attr("stroke-dasharray", cancelDashA)
     .attr("d", d3.line()([[150, 5], [190, 5]]));
   legend.append("text")
     .attr("x", 194).attr("y", 5)
@@ -404,7 +416,7 @@ function renderAB(dataA, dataB) {
     .text("A Med. Cancel");
 
   legend.append("path").attr("stroke", cancelColorB)
-    .attr("stroke-width", 1).attr("stroke-dasharray", cancelDash)
+    .attr("stroke-width", 1).attr("stroke-dasharray", cancelDashB)
     .attr("d", d3.line()([[275, 5], [315, 5]]));
   legend.append("text")
     .attr("x", 319).attr("y", 5)
@@ -497,18 +509,10 @@ function updateDefectSelection() {
     display.text(`${checked.length} test codes selected`);
   }
 
-  const start = state.global.idxStart ?? 0;
-  const end = state.global.idxEnd ?? state.filtered.length;
-  const sliced = state.filtered.slice(start, end);
-  renderDefectView(sliced);
+  renderStateChange();
 }
 
-function renderDefectView(data) {
-  let filtered = data;
-  if (state.defect.selectedTests.length > 0) {
-    const testSet = new Set(state.defect.selectedTests);
-    filtered = data.filter(d => d.test_code && testSet.has(d.test_code));
-  }
+function renderDefectView(filtered) {
 
   const eventMap = new Map();
   for (const order of filtered) {
@@ -546,17 +550,39 @@ function renderDefectView(data) {
   const container = d3.select("#defect-chart");
   container.html("");
 
+  const rowH = 26;
+  const width = container.node().getBoundingClientRect().width;
+  const margin = { top: 50, right: 70, bottom: 0, left: 40 };
+  const totalheight = margin.bottom + rowH * events.length;
+
+  const fixed_svg = container.append("svg")
+                         .attr("width", width)
+                         .attr("height", margin.top)
+                         .attr("viewBox", `0 0 ${width} ${margin.top}`)
+                         .style("pointer-events","none")
+                         .style("z-index",1);
+
+  // Put this after SVG so the width doesn't change
   if (events.length === 0) {
     container.append("p").style("color", "var(--muted)").text("No tube tracker events in the selected data.");
     return;
   }
 
-  const rowH = 26;
-  const width = 900;
-  const margin = { top: 30, right: 220, bottom: 30, left: 130 };
-  const height = margin.top + margin.bottom + rowH * events.length;
+ 
+  const legend = fixed_svg.append("g").attr("transform", `translate(${width - margin.left}, 8)`);
+  legend.append("rect").attr("width", 12).attr("height", 12).attr("fill", "steelblue").attr("opacity", 0.7);
+  legend.append("text").attr("x", 16).attr("y", 10).style("font-size", "10px").attr("fill", "#374151").text("Not Cancelled");
+  legend.append("rect").attr("y", 20).attr("width", 12).attr("height", 12).attr("fill", "crimson").attr("opacity", 0.7);
+  legend.append("text").attr("x", 16).attr("y", 30).style("font-size", "10px").attr("fill", "#374151").text("Cancelled");
 
-  const svg = container.append("svg").attr("viewBox", `0 0 ${width} ${height}`);
+  const height = d3.select("#timeline-chart").node().clientHeight - fixed_svg.node().clientHeight;
+  const body = container.append("div").style("overflow-y","scroll")
+                                      .style("-webkit-overflow-scrolling","touch")
+                                      .style("height",`${height}px`);
+  const svg = body.append("svg").attr("width", width)
+                                .attr("height", totalheight)
+                                .attr("viewBox", `0 0 ${width} ${totalheight}`)
+                                .style("display","block");
 
   const maxCount = d3.max(events, d => d.count) || 1;
 
@@ -566,13 +592,13 @@ function renderDefectView(data) {
 
   const y = d3.scaleBand()
     .domain(events.map(d => d.event))
-    .range([margin.top, height - margin.bottom])
+    .range([0, totalheight - margin.bottom])
     .padding(0.15);
 
-  svg.append("g")
-    .attr("class", "axis")
-    .attr("transform", `translate(0,${margin.top})`)
-    .call(d3.axisTop(x).ticks(6));
+  fixed_svg.append("g")
+           .attr("class", "axis")
+           .attr("transform", `translate(0,${margin.top})`)
+           .call(d3.axisTop(x).ticks(6));
 
   svg.append("g")
     .attr("class", "axis")
@@ -612,11 +638,8 @@ function renderDefectView(data) {
     .attr("fill", "#374151")
     .text(d => `N=${d.count} | ${d.cancelled} canc. (${d.cancel_pct.toFixed(1)}%)`);
 
-  const legend = svg.append("g").attr("transform", `translate(${width - 210}, 8)`);
-  legend.append("rect").attr("width", 12).attr("height", 12).attr("fill", "steelblue").attr("opacity", 0.7);
-  legend.append("text").attr("x", 16).attr("y", 10).style("font-size", "10px").attr("fill", "#374151").text("Not Cancelled");
-  legend.append("rect").attr("x", 110).attr("width", 12).attr("height", 12).attr("fill", "crimson").attr("opacity", 0.7);
-  legend.append("text").attr("x", 126).attr("y", 10).style("font-size", "10px").attr("fill", "#374151").text("Cancelled");
+  // body.node().scrollBy(0, 0);
+
 }
 
 function renderRaw() {
@@ -643,23 +666,22 @@ function renderTimespanChange() {
 function renderStateChange() {
   applyGlobalFilters();
   renderKDE(state.filtered)
-  renderKPIs(state.filtered.slice(state.global.idxStart, state.global.idxEnd));
-  renderTimeline(state.filtered.slice(state.global.idxStart, state.global.idxEnd));
-  const aData = filterAB(state.filtered.slice(state.global.idxStart, state.global.idxEnd), state.groupA);
-  const bData = filterAB(state.filtered.slice(state.global.idxStart, state.global.idxEnd), state.groupB);
+  const slice = state.filtered.slice(state.global.idxStart, state.global.idxEnd)
+  renderKPIs(slice);
+  renderTimeline(slice);
+  const aData = filterAB(slice, state.groupA);
+  const bData = filterAB(slice, state.groupB);
   renderAB(aData, bData);
-  renderDefectView(state.filtered.slice(state.global.idxStart, state.global.idxEnd));
+  renderDefectView(slice);
 }
 
 function setupControls() {
   const opts = {
-    tests: uniqueValues(state.raw, "test_code"),
     depts: uniqueValues(state.raw, "test_performing_dept"),
     streets: uniqueValues(state.raw, "event_street"),
     weekparts: ["All", "Weekday", "Weekend"]
   };
 
-  populateSelect("#global-test", opts.tests);
   populateSelect("#global-dept", opts.depts);
   populateSelect("#global-street", opts.streets);
   populateSelect("#global-weekpart", opts.weekparts);
@@ -672,7 +694,6 @@ function setupControls() {
   d3.select("#a-weekpart").property("value", "Weekday");
   d3.select("#b-weekpart").property("value", "Weekend");
 
-  d3.select("#global-test").on("change", e => { state.global.test_code = e.target.value; renderStateChange(); });
   d3.select("#global-dept").on("change", e => { state.global.test_performing_dept = e.target.value; renderStateChange(); });
   d3.select("#global-street").on("change", e => { state.global.event_street = e.target.value; renderStateChange(); });
   d3.select("#global-weekpart").on("change", e => { state.global.ordered_weekpart = e.target.value; renderStateChange(); });

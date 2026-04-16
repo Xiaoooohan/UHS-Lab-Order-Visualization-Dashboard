@@ -17,7 +17,14 @@
     <section class="panel filters-panel">
       <h2>Global Filters</h2>
       <div class="filter-grid">
-        <label>Test Code <select id="global-test"></select></label>
+        <label class="defect-controls">
+          <div class="multi-select-wrapper">
+            <span class="filter-label">Test Codes (Multi-Select)</span>
+            <div class="multi-select" id="defect-test-select">
+            <div class="multi-select-display" id="defect-test-display">All Test Codes</div>
+            <div class="multi-select-dropdown" id="defect-test-dropdown"></div>
+          </div>
+        </div>
         <label>Department <select id="global-dept"></select></label>
         <label>Street <select id="global-street"></select></label>
         <label>Weekpart <select id="global-weekpart"></select></label>
@@ -30,9 +37,33 @@
       <div id="kpi-cards" class="kpi-grid"></div>
     </section>
 
+    <section class="panel defect-panel">
+    </section>
+
     <section class="panel">
-      <h2>Average Journey Timeline (Hours from Order)</h2>
-      <div id="timeline-chart"></div>
+      <div style="flex-direction: row; display:flex">
+        <div style="flex-grow: 1;">
+          <h2>Average Journey Timeline (Hours from Order)</h2>
+          <div id="timeline-chart"></div>
+        </div>
+
+        <div style="flex-grow: 1;">
+          <div style="flex-direction: row; display:flex; align-content:space-between;">
+            <div style="flex-grow: 1">
+              <h2 >Event Likelihood (Defect View)</h2>
+              <div id="defect-summary" class="ab-summary"></div>
+            </div>
+            <label style="flex-grow: 1">Sort By
+              <select id="defect-sort">
+                <option value="count">Event Count</option>
+                <option value="cancelled_n">Total Cancelled</option>
+                <option value="cancelled_pct">Cancelled %</option>
+              </select>
+            </label>
+          </div>
+          <div id="defect-chart"></div>
+        </div>
+      </div>
       <h2>KDE of Orders</h2>
       <div id="kde-chart"></div>
       <div id="date-cards" class="kpi-grid"></div>
@@ -61,27 +92,6 @@
       <div id="ab-chart"></div>
     </section>
 
-    <section class="panel defect-panel">
-      <h2>Event Likelihood (Defect View)</h2>
-      <div class="defect-controls">
-        <div class="multi-select-wrapper">
-          <span class="filter-label">Test Codes (Multi-Select)</span>
-          <div class="multi-select" id="defect-test-select">
-            <div class="multi-select-display" id="defect-test-display">All Test Codes</div>
-            <div class="multi-select-dropdown" id="defect-test-dropdown"></div>
-          </div>
-        </div>
-        <label>Sort By
-          <select id="defect-sort">
-            <option value="count">Event Count</option>
-            <option value="cancelled_n">Total Cancelled</option>
-            <option value="cancelled_pct">Cancelled %</option>
-          </select>
-        </label>
-      </div>
-      <div id="defect-summary" class="ab-summary"></div>
-      <div id="defect-chart"></div>
-    </section>
   </main>
 
   <script src="dashboard.js"></script>
