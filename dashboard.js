@@ -732,7 +732,7 @@ function setupControls() {
   });
 }
 
-fetch("dashboard_data.json")
+fetch("https://pub-58f2427b588f44159231b8eb9df8e9fa.r2.dev/dashboard_data.json")
   .then(r => r.json())
   .then(data => {
     state.raw = data;
