@@ -98,3 +98,101 @@ svg { width: 100%; height: auto; }
 .ab-panel #ab-chart {
   margin-top: 12px;
 }
+
+/* Multi-select */
+.multi-select-wrapper {
+  display: grid;
+  gap: 6px;
+}
+
+.multi-select-wrapper .filter-label {
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.multi-select {
+  position: relative;
+  min-width: 220px;
+}
+
+.multi-select-display {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  padding: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.multi-select-dropdown {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  min-width: 280px;
+  max-height: 300px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 0 0 8px 8px;
+  z-index: 100;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.multi-select.open .multi-select-dropdown {
+  display: block;
+}
+
+.multi-select-search {
+  width: calc(100% - 16px);
+  margin: 6px 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  outline: none;
+}
+
+.multi-select-actions {
+  display: flex;
+  gap: 6px;
+  padding: 4px 8px 6px;
+  border-bottom: 1px solid var(--line);
+}
+
+.multi-select-actions button {
+  flex: 1;
+  margin: 0;
+  padding: 4px 8px;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.multi-select-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.multi-select-item:hover {
+  background: var(--bg);
+}
+
+/* Defect view controls */
+.defect-controls {
+  display: flex;
+  gap: 16px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+#defect-chart {
+  overflow-x: auto;
+}

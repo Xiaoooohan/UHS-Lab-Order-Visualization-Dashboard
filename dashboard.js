@@ -19,7 +19,8 @@ const state = {
     dateEnd : null
   },
   groupA: { weekpart: "Weekday", cancel: "All" },
-  groupB: { weekpart: "Weekend", cancel: "All" }
+  groupB: { weekpart: "Weekend", cancel: "All" },
+  defect: { selectedTests: [], sortBy: "count" }
 };
 
 const timeParser = d3.utcParse("%Y-%m-%dT%H:%M:%SZ");
@@ -95,7 +96,7 @@ function renderKPIs(data) {
     { label: "Cancellation Rate", value: `${(100 * d3.mean(data, d => d.has_cancellation ? 1 : 0) || 0).toFixed(1)}%` },
     { label: "Median Hours from Order to Collection", value: (d3.median(data.map(d => d.collection_hours).filter(Number.isFinite)) || 0).toFixed(2) },
     { label: "Median Hours from Order to Verification", value: (d3.median(data.map(d => d3.max([d.min_verified_hours, d.max_verified_hours])).filter(Number.isFinite)) || 0).toFixed(2) },
-    { label: "Mean | Std. Deviation of Count of Tube Tracker Events", value: String((d3.mean(data.map(d => d.n_tube_tracker_events).filter(Number.isFinite)) || 0).toFixed(2)) + " | " + String((d3.deviation(data.map(d => d.n_tube_tracker_events).filter(Number.isFinite))).toFixed(2))}
+    { label: "Mean | S.d. of Count of Tube Tracker Events", value: String((d3.mean(data.map(d => d.n_tube_tracker_events).filter(Number.isFinite)) || 0).toFixed(2)) + " | " + String((d3.deviation(data.map(d => d.n_tube_tracker_events).filter(Number.isFinite))).toFixed(2))}
   ];
 
   d3.select("#kpi-cards")
@@ -316,6 +317,9 @@ function renderAB(dataA, dataB) {
 	            .attr("y1", margin.top)
 		    .attr("y2", height - margin.bottom);
 
+  const cancelColorA = "#e74c6f";
+  const cancelColorB = "#5b9bd5";
+
   svg.selectAll(".barA")
     .data(rows)
     .join("rect")
@@ -324,7 +328,8 @@ function renderAB(dataA, dataB) {
     .attr("y", d => y(d.metric))
     .attr("width", d => Math.abs(x(d.A) - x(0)))
     .attr("height", 14)
-    .attr("fill", colors.A);
+    .attr("fill", cancelColorA)
+    .attr("fill-opacity", 0.35);
 
   svg.selectAll(".barB")
     .data(rows)
@@ -334,22 +339,20 @@ function renderAB(dataA, dataB) {
     .attr("y", d => y(d.metric) + 20)
     .attr("width", d => Math.abs(x(d.B) - x(0)))
     .attr("height", 14)
-    .attr("fill", colors.B);
+    .attr("fill", cancelColorB)
+    .attr("fill-opacity", 0.35);
 
   const cancel_median_time_A = d3.median(dataA.filter(d => d.has_cancellation).map(d => d.cancellation_hours));
   const cancel_median_time_B = d3.median(dataB.filter(d => d.has_cancellation).map(d => d.cancellation_hours));
-  a_dash = ("10,10");
-  b_dash = ("5,5");
-  svg.append("path").attr("stroke", "red")
+  const cancelDash = "10,10";
+  svg.append("path").attr("stroke", cancelColorA)
                     .attr("stroke-width", 1)
-                    .attr("stroke-dasharray", a_dash)
-                    .attr("d", d3.line()([[x(cancel_median_time_A), (height - margin.bottom)], [x(cancel_median_time_A), margin.top]]))
-                    .attr("text", "Validated Orders");
-  svg.append("path").attr("stroke", "red")
+                    .attr("stroke-dasharray", cancelDash)
+                    .attr("d", d3.line()([[x(cancel_median_time_A), (height - margin.bottom)], [x(cancel_median_time_A), margin.top]]));
+  svg.append("path").attr("stroke", cancelColorB)
                     .attr("stroke-width", 1)
-                    .attr("stroke-dasharray", b_dash)
-                    .attr("d", d3.line()([[x(cancel_median_time_B), (height - margin.bottom)], [x(cancel_median_time_B), margin.top]]))
-                    .attr("text", "Validated Orders");
+                    .attr("stroke-dasharray", cancelDash)
+                    .attr("d", d3.line()([[x(cancel_median_time_B), (height - margin.bottom)], [x(cancel_median_time_B), margin.top]]));
 
   svg.selectAll(".txtA")
     .data(rows)
@@ -357,7 +360,7 @@ function renderAB(dataA, dataB) {
     .attr("class", "txtA")
     .attr("x", d => x(Math.max(d.A, 0)) + 6)
     .attr("y", d => y(d.metric) + 12)
-    .attr("fill", colors.A)
+    .attr("fill", cancelColorA)
     .style("font-size", "12px")
     .text(d => d.A.toFixed(2));
 
@@ -367,36 +370,253 @@ function renderAB(dataA, dataB) {
     .attr("class", "txtB")
     .attr("x", d => x(Math.max(d.B, 0)) + 6)
     .attr("y", d => y(d.metric) + 32)
-    .attr("fill", "#475569")
+    .attr("fill", cancelColorB)
     .style("font-size", "12px")
     .text(d => d.B.toFixed(2));
 
   const legend = svg.append("g")
-    .attr("transform", `translate(${width - 180}, 8)`);
+    .attr("transform", `translate(${width - 420}, 8)`);
 
   legend.append("text")
-    .attr("x", 0)
-    .attr("y", 5)
-    .attr("fill", colors.A)
-    .style("font-size", "12px")
-    .text("■ Group A");
-  legend.append("path").attr("stroke", "red")
-                       .attr("stroke-width", 1)
-                       .attr("stroke-dasharray", a_dash)
-                       .attr("d", d3.line()([[0, 6], [60, 6]]))
-                       .attr("text", "Validated Orders");
+    .attr("x", 0).attr("y", 5)
+    .attr("fill", cancelColorA).style("font-size", "12px")
+    .text("■");
+  legend.append("text")
+    .attr("x", 12).attr("y", 5)
+    .attr("fill", "#374151").style("font-size", "12px")
+    .text("Group A");
 
   legend.append("text")
-    .attr("x", 90)
-    .attr("y", 5)
-    .attr("fill", "#475569")
-    .style("font-size", "12px")
-    .text("■ Group B");
-  legend.append("path").attr("stroke", "red")
-                       .attr("stroke-width", 1)
-                       .attr("stroke-dasharray", b_dash)
-                       .attr("d", d3.line()([[90, 6], [150, 6]]))
-                       .attr("text", "Validated Orders");
+    .attr("x", 70).attr("y", 5)
+    .attr("fill", cancelColorB).style("font-size", "12px")
+    .text("■");
+  legend.append("text")
+    .attr("x", 82).attr("y", 5)
+    .attr("fill", "#374151").style("font-size", "12px")
+    .text("Group B");
+
+  legend.append("path").attr("stroke", cancelColorA)
+    .attr("stroke-width", 1).attr("stroke-dasharray", cancelDash)
+    .attr("d", d3.line()([[150, 5], [190, 5]]));
+  legend.append("text")
+    .attr("x", 194).attr("y", 5)
+    .attr("fill", "#374151").style("font-size", "10px")
+    .text("A Med. Cancel");
+
+  legend.append("path").attr("stroke", cancelColorB)
+    .attr("stroke-width", 1).attr("stroke-dasharray", cancelDash)
+    .attr("d", d3.line()([[275, 5], [315, 5]]));
+  legend.append("text")
+    .attr("x", 319).attr("y", 5)
+    .attr("fill", "#374151").style("font-size", "10px")
+    .text("B Med. Cancel");
+}
+
+// =============== Defect View ===============
+
+function setupDefectMultiSelect(data) {
+  const freq = new Map();
+  for (const d of data) {
+    if (d.test_code) freq.set(d.test_code, (freq.get(d.test_code) || 0) + 1);
+  }
+  const testCodes = Array.from(freq.entries()).sort((a, b) => b[1] - a[1]);
+
+  const dropdown = d3.select("#defect-test-dropdown");
+  dropdown.html("");
+
+  dropdown.append("input")
+    .attr("type", "text")
+    .attr("placeholder", "Search test codes...")
+    .attr("class", "multi-select-search")
+    .on("input", function() {
+      const q = this.value.toLowerCase();
+      dropdown.selectAll(".multi-select-item").each(function() {
+        const code = d3.select(this).select("input").property("value").toLowerCase();
+        d3.select(this).style("display", code.includes(q) ? null : "none");
+      });
+    })
+    .on("click", function(e) { e.stopPropagation(); });
+
+  const actions = dropdown.append("div").attr("class", "multi-select-actions");
+  actions.append("button").text("Select Visible").on("click", function(e) {
+    e.stopPropagation();
+    e.preventDefault();
+    dropdown.selectAll(".multi-select-item").each(function() {
+      if (d3.select(this).style("display") !== "none") {
+        d3.select(this).select("input").property("checked", true);
+      }
+    });
+    updateDefectSelection();
+  });
+  actions.append("button").text("Clear All").on("click", function(e) {
+    e.stopPropagation();
+    e.preventDefault();
+    dropdown.selectAll("input[type=checkbox]").property("checked", false);
+    updateDefectSelection();
+  });
+
+  testCodes.forEach(([code, count]) => {
+    const item = dropdown.append("label").attr("class", "multi-select-item");
+    item.append("input")
+      .attr("type", "checkbox")
+      .attr("value", code)
+      .on("change", function() { updateDefectSelection(); });
+    item.append("span").text(`${code} (${count})`);
+  });
+
+  d3.select("#defect-test-display").on("click", function(e) {
+    e.stopPropagation();
+    const sel = d3.select("#defect-test-select");
+    sel.classed("open", !sel.classed("open"));
+  });
+
+  d3.select("#defect-test-dropdown").on("click", function(e) {
+    e.stopPropagation();
+  });
+
+  document.addEventListener("click", function(e) {
+    if (!e.target.closest("#defect-test-select")) {
+      d3.select("#defect-test-select").classed("open", false);
+    }
+  });
+}
+
+function updateDefectSelection() {
+  const checked = [];
+  d3.select("#defect-test-dropdown").selectAll("input[type=checkbox]").each(function() {
+    if (this.checked) checked.push(this.value);
+  });
+  state.defect.selectedTests = checked;
+
+  const display = d3.select("#defect-test-display");
+  if (checked.length === 0) {
+    display.text("All Test Codes");
+  } else if (checked.length <= 3) {
+    display.text(checked.join(", "));
+  } else {
+    display.text(`${checked.length} test codes selected`);
+  }
+
+  const start = state.global.idxStart ?? 0;
+  const end = state.global.idxEnd ?? state.filtered.length;
+  const sliced = state.filtered.slice(start, end);
+  renderDefectView(sliced);
+}
+
+function renderDefectView(data) {
+  let filtered = data;
+  if (state.defect.selectedTests.length > 0) {
+    const testSet = new Set(state.defect.selectedTests);
+    filtered = data.filter(d => d.test_code && testSet.has(d.test_code));
+  }
+
+  const eventMap = new Map();
+  for (const order of filtered) {
+    if (!order.tube_tracker_event_types || !order.tube_tracker_event_types.length) continue;
+    for (const evt of order.tube_tracker_event_types) {
+      if (!eventMap.has(evt)) {
+        eventMap.set(evt, { event: evt, count: 0, cancelled: 0 });
+      }
+      const entry = eventMap.get(evt);
+      entry.count++;
+      if (order.has_cancellation) entry.cancelled++;
+    }
+  }
+
+  let events = Array.from(eventMap.values());
+  events.forEach(e => {
+    e.cancel_pct = e.count > 0 ? (e.cancelled / e.count) * 100 : 0;
+    e.not_cancelled = e.count - e.cancelled;
+  });
+
+  const sortKey = state.defect.sortBy;
+  if (sortKey === "count") {
+    events.sort((a, b) => b.count - a.count);
+  } else if (sortKey === "cancelled_n") {
+    events.sort((a, b) => b.cancelled - a.cancelled);
+  } else {
+    events.sort((a, b) => b.cancel_pct - a.cancel_pct);
+  }
+
+  d3.select("#defect-summary").text(
+    `${filtered.length} orders | ${events.length} event types` +
+    (state.defect.selectedTests.length > 0 ? ` | ${state.defect.selectedTests.length} test codes selected` : "")
+  );
+
+  const container = d3.select("#defect-chart");
+  container.html("");
+
+  if (events.length === 0) {
+    container.append("p").style("color", "var(--muted)").text("No tube tracker events in the selected data.");
+    return;
+  }
+
+  const rowH = 26;
+  const width = 900;
+  const margin = { top: 30, right: 220, bottom: 30, left: 130 };
+  const height = margin.top + margin.bottom + rowH * events.length;
+
+  const svg = container.append("svg").attr("viewBox", `0 0 ${width} ${height}`);
+
+  const maxCount = d3.max(events, d => d.count) || 1;
+
+  const x = d3.scaleLinear()
+    .domain([0, maxCount * 1.05])
+    .range([margin.left, width - margin.right]);
+
+  const y = d3.scaleBand()
+    .domain(events.map(d => d.event))
+    .range([margin.top, height - margin.bottom])
+    .padding(0.15);
+
+  svg.append("g")
+    .attr("class", "axis")
+    .attr("transform", `translate(0,${margin.top})`)
+    .call(d3.axisTop(x).ticks(6));
+
+  svg.append("g")
+    .attr("class", "axis")
+    .attr("transform", `translate(${margin.left},0)`)
+    .call(d3.axisLeft(y));
+
+  svg.selectAll(".bar-ok")
+    .data(events)
+    .join("rect")
+    .attr("class", "bar-ok")
+    .attr("x", x(0))
+    .attr("y", d => y(d.event))
+    .attr("width", d => Math.max(0, x(d.not_cancelled) - x(0)))
+    .attr("height", y.bandwidth())
+    .attr("fill", "steelblue")
+    .attr("opacity", 0.7);
+
+  svg.selectAll(".bar-cancel")
+    .data(events)
+    .join("rect")
+    .attr("class", "bar-cancel")
+    .attr("x", d => x(d.not_cancelled))
+    .attr("y", d => y(d.event))
+    .attr("width", d => Math.max(0, x(d.count) - x(d.not_cancelled)))
+    .attr("height", y.bandwidth())
+    .attr("fill", "crimson")
+    .attr("opacity", 0.7);
+
+  svg.selectAll(".bar-label")
+    .data(events)
+    .join("text")
+    .attr("class", "bar-label")
+    .attr("x", d => x(d.count) + 4)
+    .attr("y", d => y(d.event) + y.bandwidth() / 2)
+    .attr("dy", "0.35em")
+    .style("font-size", "10px")
+    .attr("fill", "#374151")
+    .text(d => `N=${d.count} | ${d.cancelled} canc. (${d.cancel_pct.toFixed(1)}%)`);
+
+  const legend = svg.append("g").attr("transform", `translate(${width - 210}, 8)`);
+  legend.append("rect").attr("width", 12).attr("height", 12).attr("fill", "steelblue").attr("opacity", 0.7);
+  legend.append("text").attr("x", 16).attr("y", 10).style("font-size", "10px").attr("fill", "#374151").text("Not Cancelled");
+  legend.append("rect").attr("x", 110).attr("width", 12).attr("height", 12).attr("fill", "crimson").attr("opacity", 0.7);
+  legend.append("text").attr("x", 126).attr("y", 10).style("font-size", "10px").attr("fill", "#374151").text("Cancelled");
 }
 
 function renderRaw() {
@@ -407,6 +627,7 @@ function renderRaw() {
   const aData = filterAB(state.raw, state.groupA);
   const bData = filterAB(state.raw, state.groupB);
   renderAB(aData, bData);
+  renderDefectView(state.raw);
 }
 
 function renderTimespanChange() {
@@ -416,6 +637,7 @@ function renderTimespanChange() {
   const aData = filterAB(sliced, state.groupA);
   const bData = filterAB(sliced, state.groupB);
   renderAB(aData, bData);
+  renderDefectView(sliced);
 }
 
 function renderStateChange() {
@@ -426,6 +648,7 @@ function renderStateChange() {
   const aData = filterAB(state.filtered.slice(state.global.idxStart, state.global.idxEnd), state.groupA);
   const bData = filterAB(state.filtered.slice(state.global.idxStart, state.global.idxEnd), state.groupB);
   renderAB(aData, bData);
+  renderDefectView(state.filtered.slice(state.global.idxStart, state.global.idxEnd));
 }
 
 function setupControls() {
@@ -459,6 +682,15 @@ function setupControls() {
   d3.select("#b-weekpart").on("change", e => { state.groupB.weekpart = e.target.value; renderStateChange(); });
   d3.select("#b-cancel").on("change", e => { state.groupB.cancel = e.target.value; renderStateChange(); });
 
+  // Defect view controls
+  setupDefectMultiSelect(state.raw);
+  d3.select("#defect-sort").on("change", function(e) {
+    state.defect.sortBy = e.target.value;
+    const start = state.global.idxStart ?? 0;
+    const end = state.global.idxEnd ?? state.filtered.length;
+    renderDefectView(state.filtered.slice(start, end));
+  });
+
   d3.select("#reset-global").on("click", () => {
     state.global = {
       test_code: "All",
@@ -466,10 +698,15 @@ function setupControls() {
       event_street: "All",
       ordered_weekpart: "All"
     };
+    state.defect.selectedTests = [];
+    state.defect.sortBy = "count";
     d3.select("#global-test").property("value", "All");
     d3.select("#global-dept").property("value", "All");
     d3.select("#global-street").property("value", "All");
     d3.select("#global-weekpart").property("value", "All");
+    d3.select("#defect-sort").property("value", "count");
+    d3.select("#defect-test-display").text("All Test Codes");
+    d3.select("#defect-test-dropdown").selectAll("input[type=checkbox]").property("checked", false);
     renderRaw();
   });
 }

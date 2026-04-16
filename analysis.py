@@ -33,7 +33,7 @@ df['event_dt'] = pd.to_datetime(df['event_dt'])
 # Sorting the column
 df = df.sort_values('event_dt')
 # Overall time series
-ts = df.set_index('event_dt').resample('1day').size()
+ts = df.set_index('event_dt').resample('1D').size()
 # Graph
 plt.figure()
 ts.plot()

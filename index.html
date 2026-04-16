@@ -60,6 +60,28 @@
       </div>
       <div id="ab-chart"></div>
     </section>
+
+    <section class="panel defect-panel">
+      <h2>Event Likelihood (Defect View)</h2>
+      <div class="defect-controls">
+        <div class="multi-select-wrapper">
+          <span class="filter-label">Test Codes (Multi-Select)</span>
+          <div class="multi-select" id="defect-test-select">
+            <div class="multi-select-display" id="defect-test-display">All Test Codes</div>
+            <div class="multi-select-dropdown" id="defect-test-dropdown"></div>
+          </div>
+        </div>
+        <label>Sort By
+          <select id="defect-sort">
+            <option value="count">Event Count</option>
+            <option value="cancelled_n">Total Cancelled</option>
+            <option value="cancelled_pct">Cancelled %</option>
+          </select>
+        </label>
+      </div>
+      <div id="defect-summary" class="ab-summary"></div>
+      <div id="defect-chart"></div>
+    </section>
   </main>
 
   <script src="dashboard.js"></script>
